@@ -437,7 +437,7 @@ export default function StudentRegistration() {
     );
   };
 
-  // Enhanced Phone Input Component - Fixed for mobile
+  // Enhanced Phone Input Component - Mobile keyboard fix
   const PhoneInput = React.memo(({
     value,
     onChange,
@@ -448,14 +448,35 @@ export default function StudentRegistration() {
     name,
     error
   }) => {
-    // Use useCallback to prevent function recreation
-    const handleInputChange = React.useCallback((e) => {
-      onChange(e);
-    }, [onChange]);
+    const inputRef = useRef(null);
+    const [isFocused, setIsFocused] = useState(false);
 
-    const handleCountryChange = React.useCallback((e) => {
+    // Handle input change with focus preservation
+    const handleInputChange = useCallback((e) => {
+      const cursorPosition = e.target.selectionStart;
+      onChange(e);
+      
+      // Preserve cursor position and focus
+      if (isFocused) {
+        requestAnimationFrame(() => {
+          if (inputRef.current && document.activeElement === inputRef.current) {
+            inputRef.current.setSelectionRange(cursorPosition, cursorPosition);
+          }
+        });
+      }
+    }, [onChange, isFocused]);
+
+    const handleCountryChange = useCallback((e) => {
       onCountryChange(e.target.value);
     }, [onCountryChange]);
+
+    const handleFocus = useCallback(() => {
+      setIsFocused(true);
+    }, []);
+
+    const handleBlur = useCallback(() => {
+      setIsFocused(false);
+    }, []);
 
     return (
       <div>
@@ -472,11 +493,14 @@ export default function StudentRegistration() {
             ))}
           </select>
           <input
+            ref={inputRef}
             type="tel"
             id={id}
             name={name}
             value={value}
             onChange={handleInputChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             placeholder={placeholder}
             inputMode="numeric"
             pattern="[0-9]*"
