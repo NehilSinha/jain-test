@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import React from 'react';
 
 // Configuration for your Flask backend
 const API_BASE_URL = 'https://backend-jain.vercel.app';
@@ -97,7 +98,8 @@ export default function StudentRegistration() {
     }
   }, []);
 
-  const handleChange = (e) => {
+  // Memoized change handlers to prevent re-renders
+  const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -111,7 +113,15 @@ export default function StudentRegistration() {
         [name]: ''
       }));
     }
-  };
+  }, [errors]);
+
+  const handlePhoneCountryChange = useCallback((newCountry) => {
+    setPhoneCountry(newCountry);
+  }, []);
+
+  const handleParentPhoneCountryChange = useCallback((newCountry) => {
+    setParentPhoneCountry(newCountry);
+  }, []);
 
   // Enhanced validation with specific error messages
   const validateForm = () => {
@@ -427,8 +437,8 @@ export default function StudentRegistration() {
     );
   };
 
-  // Enhanced Phone Input Component
-  const PhoneInput = ({
+  // Enhanced Phone Input Component - Fixed for mobile
+  const PhoneInput = React.memo(({
     value,
     onChange,
     countryCode,
@@ -437,36 +447,48 @@ export default function StudentRegistration() {
     id,
     name,
     error
-  }) => (
-    <div>
-      <div className="flex">
-        <select
-          value={countryCode}
-          onChange={(e) => onCountryChange(e.target.value)}
-          className={`min-w-0 w-20 px-2 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-r-0 rounded-l bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
-        >
-          {countryCodes.map(({ code, country }) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
-        <input
-          type="tel"
-          id={id}
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          inputMode="numeric"
-          pattern="[0-9]*"
-          required
-          className={`min-w-0 flex-1 px-3 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-l-0 rounded-r focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
-        />
+  }) => {
+    // Use useCallback to prevent function recreation
+    const handleInputChange = React.useCallback((e) => {
+      onChange(e);
+    }, [onChange]);
+
+    const handleCountryChange = React.useCallback((e) => {
+      onCountryChange(e.target.value);
+    }, [onCountryChange]);
+
+    return (
+      <div>
+        <div className="flex">
+          <select
+            value={countryCode}
+            onChange={handleCountryChange}
+            className={`min-w-0 w-20 px-2 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-r-0 rounded-l bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
+          >
+            {countryCodes.map(({ code, country }) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+          <input
+            type="tel"
+            id={id}
+            name={name}
+            value={value}
+            onChange={handleInputChange}
+            placeholder={placeholder}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="tel"
+            required
+            className={`min-w-0 flex-1 px-3 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-l-0 rounded-r focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
+          />
+        </div>
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
-  );
+    );
+  });
 
   // Show student dashboard if registered
   if (studentData) {
@@ -672,7 +694,7 @@ export default function StudentRegistration() {
                     value={formData.phone}
                     onChange={handleChange}
                     countryCode={phoneCountry}
-                    onCountryChange={setPhoneCountry}
+                    onCountryChange={handlePhoneCountryChange}
                     placeholder="Enter phone number"
                     id="phone"
                     name="phone"
@@ -752,7 +774,7 @@ export default function StudentRegistration() {
                     value={formData.parentPhone}
                     onChange={handleChange}
                     countryCode={parentPhoneCountry}
-                    onCountryChange={setParentPhoneCountry}
+                    onCountryChange={handleParentPhoneCountryChange}
                     placeholder="Parent's phone number"
                     id="parentPhone"
                     name="parentPhone"
