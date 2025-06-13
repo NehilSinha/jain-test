@@ -9,6 +9,7 @@ export default function StudentRegistration() {
   const [studentData, setStudentData] = useState(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [errors, setErrors] = useState({});
   const hasInitialized = useRef(false);
 
   const [formData, setFormData] = useState({
@@ -58,42 +59,68 @@ export default function StudentRegistration() {
       ...prev,
       [name]: value
     }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const validateForm = () => {
-    const requiredFields = [
-      { key: 'name', label: 'Full Name' },
-      { key: 'phone', label: 'Phone Number' },
-      { key: 'email', label: 'Email Address' },
-      { key: 'department', label: 'Department' },
-      { key: 'dob', label: 'Date of Birth' },
-      { key: 'parentName', label: 'Parent Name' },
-      { key: 'parentEmail', label: 'Parent Email' },
-      { key: 'parentPhone', label: 'Parent Phone' }
-    ];
-
-    for (let field of requiredFields) {
-      if (!formData[field.key] || formData[field.key].trim() === '') {
-        return `Please fill in: ${field.label}`;
+    const newErrors = {};
+    
+    // Check required fields
+    if (!formData.name || formData.name.trim() === '') {
+      newErrors.name = 'Full Name is required';
+    }
+    
+    if (!formData.phone || formData.phone.trim() === '') {
+      newErrors.phone = 'Phone Number is required';
+    } else if (formData.phone.length < 10) {
+      newErrors.phone = 'Please enter a valid phone number (at least 10 digits)';
+    }
+    
+    if (!formData.email || formData.email.trim() === '') {
+      newErrors.email = 'Email Address is required';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
+    }
+    
+    if (!formData.department) {
+      newErrors.department = 'Department is required';
+    }
+    
+    if (!formData.dob) {
+      newErrors.dob = 'Date of Birth is required';
+    }
+    
+    if (!formData.parentName || formData.parentName.trim() === '') {
+      newErrors.parentName = 'Parent Name is required';
+    }
+    
+    if (!formData.parentPhone || formData.parentPhone.trim() === '') {
+      newErrors.parentPhone = 'Parent Phone is required';
+    } else if (formData.parentPhone.length < 10) {
+      newErrors.parentPhone = 'Please enter a valid parent phone number (at least 10 digits)';
+    }
+    
+    if (!formData.parentEmail || formData.parentEmail.trim() === '') {
+      newErrors.parentEmail = 'Parent Email is required';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.parentEmail)) {
+        newErrors.parentEmail = 'Please enter a valid parent email address';
       }
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      return 'Please enter a valid email address';
-    }
-    if (!emailRegex.test(formData.parentEmail)) {
-      return 'Please enter a valid parent email address';
-    }
-
-    if (formData.phone.length < 10) {
-      return 'Please enter a valid phone number (at least 10 digits)';
-    }
-    if (formData.parentPhone.length < 10) {
-      return 'Please enter a valid parent phone number (at least 10 digits)';
-    }
-
-    return null;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleRegistration = async () => {
@@ -101,9 +128,8 @@ export default function StudentRegistration() {
 
     console.log('🚀 Starting registration process');
 
-    const validationError = validateForm();
-    if (validationError) {
-      setMessage(validationError);
+    if (!validateForm()) {
+      setMessage('Please fix the errors below and try again.');
       return;
     }
 
@@ -147,6 +173,7 @@ export default function StudentRegistration() {
           parentPhone: '',
           dob: ''
         });
+        setErrors({});
 
       } else {
         setMessage(data.error || 'Registration failed. Please try again.');
@@ -376,20 +403,6 @@ export default function StudentRegistration() {
               >
                 {checkingStatus ? 'Checking...' : 'Check for Updates'}
               </button>
-
-              {/* <button
-                onClick={() => window.location.href = '/'}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium"
-              >
-                Home
-              </button> */}
-
-              {/* <button
-                onClick={handleClearRegistration}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium"
-              >
-                Clear Data
-              </button> */}
             </div>
 
             {/* Info Note */}
@@ -431,7 +444,7 @@ export default function StudentRegistration() {
             <p className="text-gray-600 text-sm">Please fill in all details for your college registration</p>
           </div>
 
-          {message && (
+          {message && !message.includes('Please fix the errors') && (
             <div className={`p-3 rounded-lg mb-4 text-sm text-center ${
               message.includes('successful')
                 ? 'bg-green-50 border border-green-200 text-green-800'
@@ -448,7 +461,6 @@ export default function StudentRegistration() {
                 Personal Information
               </h3>
 
-              {/* All fields stacked vertically for mobile */}
               <div className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -462,8 +474,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Enter your full name"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.name ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.name && (
+                    <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+                  )}
                 </div>
 
                 <div>
@@ -477,8 +492,11 @@ export default function StudentRegistration() {
                     value={formData.dob}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.dob ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.dob && (
+                    <p className="mt-1 text-xs text-red-600">{errors.dob}</p>
+                  )}
                 </div>
 
                 <div>
@@ -493,8 +511,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Enter phone number"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.phone ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.phone && (
+                    <p className="mt-1 text-xs text-red-600">{errors.phone}</p>
+                  )}
                 </div>
 
                 <div>
@@ -509,8 +530,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="your.email@example.com"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.email ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+                  )}
                 </div>
 
                 <div>
@@ -523,13 +547,16 @@ export default function StudentRegistration() {
                     value={formData.department}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.department ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   >
                     <option value="">Select Department</option>
                     {departments.map(dept => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
+                  {errors.department && (
+                    <p className="mt-1 text-xs text-red-600">{errors.department}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -540,7 +567,6 @@ export default function StudentRegistration() {
                 Parent Information
               </h3>
 
-              {/* All fields stacked vertically for mobile */}
               <div className="space-y-4">
                 <div>
                   <label htmlFor="parentName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -554,8 +580,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Parent's full name"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.parentName ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.parentName && (
+                    <p className="mt-1 text-xs text-red-600">{errors.parentName}</p>
+                  )}
                 </div>
 
                 <div>
@@ -570,8 +599,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Parent's phone number"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.parentPhone ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.parentPhone && (
+                    <p className="mt-1 text-xs text-red-600">{errors.parentPhone}</p>
+                  )}
                 </div>
 
                 <div>
@@ -586,8 +618,11 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="parent.email@example.com"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.parentEmail ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.parentEmail && (
+                    <p className="mt-1 text-xs text-red-600">{errors.parentEmail}</p>
+                  )}
                 </div>
               </div>
             </div>
