@@ -9,6 +9,7 @@ export default function StudentRegistration() {
   const [studentData, setStudentData] = useState(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [errors, setErrors] = useState({});
   const hasInitialized = useRef(false);
 
   const [formData, setFormData] = useState({
@@ -49,22 +50,50 @@ export default function StudentRegistration() {
     { code: '+86', country: 'China' }
   ];
 
+  // Enhanced localStorage handler with error recovery
+  const getStoredData = () => {
+    try {
+      if (typeof Storage === 'undefined') {
+        console.warn('localStorage not supported');
+        return null;
+      }
+      const data = localStorage.getItem('studentRegistration');
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('localStorage read error:', error);
+      // Clear corrupted data
+      try {
+        localStorage.removeItem('studentRegistration');
+      } catch (clearError) {
+        console.error('localStorage clear error:', clearError);
+      }
+      return null;
+    }
+  };
+
+  const setStoredData = (data) => {
+    try {
+      if (typeof Storage !== 'undefined') {
+        localStorage.setItem('studentRegistration', JSON.stringify(data));
+        return true;
+      }
+    } catch (error) {
+      console.error('localStorage write error:', error);
+      setMessage('Warning: Unable to save data locally. Please bookmark this page.');
+    }
+    return false;
+  };
+
   // Check localStorage on mount
   useEffect(() => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    try {
-      const savedStudentData = JSON.parse(localStorage.getItem('studentRegistration') || 'null');
-
-      if (savedStudentData) {
-        console.log('Found saved registration data');
-        setStudentData(savedStudentData);
-        setMessage('Welcome back! Your registration details are shown below.');
-      }
-    } catch (error) {
-      console.error('localStorage error:', error);
-      localStorage.removeItem('studentRegistration');
+    const savedStudentData = getStoredData();
+    if (savedStudentData) {
+      console.log('Found saved registration data');
+      setStudentData(savedStudentData);
+      setMessage('Welcome back! Your registration details are shown below.');
     }
   }, []);
 
@@ -74,42 +103,90 @@ export default function StudentRegistration() {
       ...prev,
       [name]: value
     }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
+  // Enhanced validation with specific error messages
   const validateForm = () => {
-    const requiredFields = [
-      { key: 'name', label: 'Full Name' },
-      { key: 'phone', label: 'Phone Number' },
-      { key: 'email', label: 'Email Address' },
-      { key: 'department', label: 'Department' },
-      { key: 'dob', label: 'Date of Birth' },
-      { key: 'parentName', label: 'Parent Name' },
-      { key: 'parentEmail', label: 'Parent Email' },
-      { key: 'parentPhone', label: 'Parent Phone' }
-    ];
+    const newErrors = {};
+    
+    // Name validation
+    if (!formData.name?.trim()) {
+      newErrors.name = 'Full name is required';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(formData.name.trim())) {
+      newErrors.name = 'Name contains invalid characters';
+    }
 
-    for (let field of requiredFields) {
-      if (!formData[field.key] || formData[field.key].trim() === '') {
-        return `Please fill in: ${field.label}`;
+    // Phone validation with better regex
+    const phoneRegex = /^\d{10,15}$/;
+    if (!formData.phone?.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!phoneRegex.test(formData.phone.replace(/\s+/g, ''))) {
+      newErrors.phone = 'Phone number must be 10-15 digits';
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email?.trim()) {
+      newErrors.email = 'Email address is required';
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Department validation
+    if (!formData.department) {
+      newErrors.department = 'Please select a department';
+    }
+
+    // Date of birth validation
+    if (!formData.dob) {
+      newErrors.dob = 'Date of birth is required';
+    } else {
+      const dob = new Date(formData.dob);
+      const today = new Date();
+      const age = today.getFullYear() - dob.getFullYear();
+      
+      if (dob > today) {
+        newErrors.dob = 'Date of birth cannot be in the future';
+      } else if (age < 16 || age > 100) {
+        newErrors.dob = 'Please enter a valid date of birth (age 16-100)';
       }
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      return 'Please enter a valid email address';
-    }
-    if (!emailRegex.test(formData.parentEmail)) {
-      return 'Please enter a valid parent email address';
-    }
-
-    if (formData.phone.length < 10) {
-      return 'Please enter a valid phone number (at least 10 digits)';
-    }
-    if (formData.parentPhone.length < 10) {
-      return 'Please enter a valid parent phone number (at least 10 digits)';
+    // Parent name validation
+    if (!formData.parentName?.trim()) {
+      newErrors.parentName = 'Parent name is required';
+    } else if (formData.parentName.trim().length < 2) {
+      newErrors.parentName = 'Parent name must be at least 2 characters';
+    } else if (!/^[a-zA-Z\s.'-]+$/.test(formData.parentName.trim())) {
+      newErrors.parentName = 'Parent name contains invalid characters';
     }
 
-    return null;
+    // Parent email validation
+    if (!formData.parentEmail?.trim()) {
+      newErrors.parentEmail = 'Parent email is required';
+    } else if (!emailRegex.test(formData.parentEmail)) {
+      newErrors.parentEmail = 'Please enter a valid parent email address';
+    }
+
+    // Parent phone validation
+    if (!formData.parentPhone?.trim()) {
+      newErrors.parentPhone = 'Parent phone number is required';
+    } else if (!phoneRegex.test(formData.parentPhone.replace(/\s+/g, ''))) {
+      newErrors.parentPhone = 'Parent phone number must be 10-15 digits';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleRegistration = async () => {
@@ -117,9 +194,8 @@ export default function StudentRegistration() {
 
     console.log('🚀 Starting registration process');
 
-    const validationError = validateForm();
-    if (validationError) {
-      setMessage(validationError);
+    if (!validateForm()) {
+      setMessage('Please fix the errors below and try again.');
       return;
     }
 
@@ -127,17 +203,35 @@ export default function StudentRegistration() {
     setMessage('Processing registration...');
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(`${API_BASE_URL}/api/students/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error('Email or phone number already registered');
+        } else if (response.status === 400) {
+          throw new Error('Invalid registration data. Please check your inputs.');
+        } else if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.');
+        } else {
+          throw new Error(`Registration failed (${response.status})`);
+        }
+      }
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (data.success) {
         const registrationData = {
           name: data.data.name,
           studentId: data.studentId,
@@ -148,7 +242,7 @@ export default function StudentRegistration() {
           registrationDate: new Date().toISOString()
         };
 
-        localStorage.setItem('studentRegistration', JSON.stringify(registrationData));
+        setStoredData(registrationData);
         setStudentData(registrationData);
         setMessage('Registration successful! 🎉');
 
@@ -163,13 +257,21 @@ export default function StudentRegistration() {
           parentPhone: '',
           dob: ''
         });
+        setErrors({});
 
       } else {
-        setMessage(data.error || 'Registration failed. Please try again.');
+        throw new Error(data.error || 'Registration failed. Please try again.');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setMessage('Error: Unable to connect to server. Please check if the backend is running.');
+      
+      if (error.name === 'AbortError') {
+        setMessage('Request timed out. Please check your connection and try again.');
+      } else if (error.message.includes('fetch')) {
+        setMessage('Unable to connect to server. Please check your internet connection.');
+      } else {
+        setMessage(`Error: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -184,17 +286,27 @@ export default function StudentRegistration() {
     setMessage('Checking for updates...');
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch(`${API_BASE_URL}/api/students/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ studentId: studentData.studentId }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Status check failed (${response.status})`);
+      }
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (data.success) {
         const updatedData = {
           name: data.student.name,
           studentId: data.student.studentId,
@@ -205,15 +317,20 @@ export default function StudentRegistration() {
           registrationDate: data.student.registrationDate
         };
 
-        localStorage.setItem('studentRegistration', JSON.stringify(updatedData));
+        setStoredData(updatedData);
         setStudentData(updatedData);
         setMessage('Status updated! 🎉');
       } else {
-        setMessage(data.error || 'No updates found');
+        throw new Error(data.error || 'No updates found');
       }
     } catch (error) {
       console.error('Status check error:', error);
-      setMessage('Error: Unable to connect to server.');
+      
+      if (error.name === 'AbortError') {
+        setMessage('Status check timed out. Please try again.');
+      } else {
+        setMessage('Error: Unable to check status. Please try again later.');
+      }
     } finally {
       setCheckingStatus(false);
     }
@@ -224,7 +341,11 @@ export default function StudentRegistration() {
   };
 
   const confirmClearRegistration = () => {
-    localStorage.removeItem('studentRegistration');
+    try {
+      localStorage.removeItem('studentRegistration');
+    } catch (error) {
+      console.error('Error clearing localStorage:', error);
+    }
     setStudentData(null);
     setMessage('Registration data cleared');
     setShowConfirmDialog(false);
@@ -306,7 +427,7 @@ export default function StudentRegistration() {
     );
   };
 
-  // Phone Input Component - Mobile optimized
+  // Enhanced Phone Input Component
   const PhoneInput = ({
     value,
     onChange,
@@ -314,30 +435,36 @@ export default function StudentRegistration() {
     onCountryChange,
     placeholder,
     id,
-    name
+    name,
+    error
   }) => (
-    <div className="flex">
-      <select
-        value={countryCode}
-        onChange={(e) => onCountryChange(e.target.value)}
-        className="min-w-0 w-20 px-2 py-2 border border-gray-300 border-r-0 rounded-l bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        {countryCodes.map(({ code, country }) => (
-          <option key={code} value={code}>
-            {code}
-          </option>
-        ))}
-      </select>
-      <input
-        type="tel"
-        id={id}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required
-        className="min-w-0 flex-1 px-3 py-2 border border-gray-300 border-l-0 rounded-r focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-      />
+    <div>
+      <div className="flex">
+        <select
+          value={countryCode}
+          onChange={(e) => onCountryChange(e.target.value)}
+          className={`min-w-0 w-20 px-2 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-r-0 rounded-l bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        >
+          {countryCodes.map(({ code, country }) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+        <input
+          type="tel"
+          id={id}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          required
+          className={`min-w-0 flex-1 px-3 py-2 border ${error ? 'border-red-300' : 'border-gray-300'} border-l-0 rounded-r focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 
@@ -355,6 +482,9 @@ export default function StudentRegistration() {
                 src="./favicon.ico"
                 alt="Jain University Logo"
                 className="w-16 h-16 object-contain"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
               />
             </div>
             <h1 className="text-base font-medium text-blue-900 leading-tight">
@@ -374,6 +504,8 @@ export default function StudentRegistration() {
               <div className={`p-3 rounded-lg mb-4 text-sm text-center ${
                 message.includes('successful') || message.includes('Welcome') || message.includes('updated')
                   ? 'bg-green-50 border border-green-200 text-green-800'
+                  : message.includes('Warning')
+                  ? 'bg-yellow-50 border border-yellow-200 text-yellow-800'
                   : 'bg-red-50 border border-red-200 text-red-800'
               }`}>
                 {message}
@@ -428,19 +560,12 @@ export default function StudentRegistration() {
                 {checkingStatus ? 'Checking...' : 'Check for Updates'}
               </button>
 
-              {/* <button
-                onClick={() => window.location.href = '/'}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium"
-              >
-                Home
-              </button> */}
-
-              {/* <button
+              <button
                 onClick={handleClearRegistration}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium"
               >
                 Clear Data
-              </button> */}
+              </button>
             </div>
 
             {/* Info Note */}
@@ -462,13 +587,16 @@ export default function StudentRegistration() {
       <div className="max-w-2xl mx-auto">
         {/* Header with Logo */}
         <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <img
-                src="./favicon.ico"
-                alt="Jain University Logo"
-                className="w-16 h-16 object-contain"
-              />
-            </div>
+          <div className="flex items-center justify-center mb-4">
+            <img
+              src="./favicon.ico"
+              alt="Jain University Logo"
+              className="w-16 h-16 object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
           <h1 className="text-base font-medium text-blue-900 leading-tight">
             JAIN (Deemed-to-be-University)<br />
             Faculty of Engineering and Technology (FET)
@@ -486,6 +614,8 @@ export default function StudentRegistration() {
             <div className={`p-3 rounded-lg mb-4 text-sm text-center ${
               message.includes('successful')
                 ? 'bg-green-50 border border-green-200 text-green-800'
+                : message.includes('Warning')
+                ? 'bg-yellow-50 border border-yellow-200 text-yellow-800'
                 : 'bg-red-50 border border-red-200 text-red-800'
             }`}>
               {message}
@@ -499,7 +629,6 @@ export default function StudentRegistration() {
                 Personal Information
               </h3>
 
-              {/* All fields stacked vertically for mobile */}
               <div className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -513,8 +642,9 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Enter your full name"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.name ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
                 </div>
 
                 <div>
@@ -527,9 +657,11 @@ export default function StudentRegistration() {
                     name="dob"
                     value={formData.dob}
                     onChange={handleChange}
+                    max={new Date().toISOString().split('T')[0]}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.dob ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.dob && <p className="mt-1 text-xs text-red-600">{errors.dob}</p>}
                 </div>
 
                 <div>
@@ -544,6 +676,7 @@ export default function StudentRegistration() {
                     placeholder="Enter phone number"
                     id="phone"
                     name="phone"
+                    error={errors.phone}
                   />
                 </div>
 
@@ -558,9 +691,11 @@ export default function StudentRegistration() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="your.email@example.com"
+                    inputMode="email"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.email ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
                 </div>
 
                 <div>
@@ -573,13 +708,14 @@ export default function StudentRegistration() {
                     value={formData.department}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.department ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   >
                     <option value="">Select Department</option>
                     {departments.map(dept => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
                   </select>
+                  {errors.department && <p className="mt-1 text-xs text-red-600">{errors.department}</p>}
                 </div>
               </div>
             </div>
@@ -590,7 +726,6 @@ export default function StudentRegistration() {
                 Parent Information
               </h3>
 
-              {/* All fields stacked vertically for mobile */}
               <div className="space-y-4">
                 <div>
                   <label htmlFor="parentName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -604,8 +739,9 @@ export default function StudentRegistration() {
                     onChange={handleChange}
                     placeholder="Parent's full name"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.parentName ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.parentName && <p className="mt-1 text-xs text-red-600">{errors.parentName}</p>}
                 </div>
 
                 <div>
@@ -620,6 +756,7 @@ export default function StudentRegistration() {
                     placeholder="Parent's phone number"
                     id="parentPhone"
                     name="parentPhone"
+                    error={errors.parentPhone}
                   />
                 </div>
 
@@ -634,9 +771,11 @@ export default function StudentRegistration() {
                     value={formData.parentEmail}
                     onChange={handleChange}
                     placeholder="parent.email@example.com"
+                    inputMode="email"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    className={`w-full px-3 py-2 border ${errors.parentEmail ? 'border-red-300' : 'border-gray-300'} rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm`}
                   />
+                  {errors.parentEmail && <p className="mt-1 text-xs text-red-600">{errors.parentEmail}</p>}
                 </div>
               </div>
             </div>
@@ -646,7 +785,7 @@ export default function StudentRegistration() {
               <button
                 onClick={handleRegistration}
                 disabled={loading}
-                className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-400 text-white py-3 px-6 rounded font-medium text-sm"
+                className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-400 text-white py-3 px-6 rounded font-medium text-sm transition-colors"
               >
                 {loading ? 'Processing Registration...' : 'Complete Registration'}
               </button>
